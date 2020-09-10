@@ -140,9 +140,9 @@ import RNBackgroundDownloader from 'react-native-background-downloader';
 let lostTasks = await RNBackgroundDownloader.checkForExistingDownloads();
 for (let task of lostTasks) {
 	console.log(`Task ${task.id} was found!`);
-	task.progress((percent) => {
-		console.log(`Downloaded: ${percent * 100}%`);
-	}).done(() => {
+	task.onProgress((task) => {
+		console.log(`Downloaded: ${task.percent * 100}% ETA: ${task.etaInMilliSeconds}ms`);
+	}).done((task) => {
 		console.log('Downlaod is done!');
 	}).error((error) => {
 		console.log('Download canceled due to error: ', error);
@@ -172,11 +172,11 @@ let task = RNBackgroundDownloader.download({
 	headers: {
 	    Authorization: 'Bearer 2we$@$@Ddd223'
 	}
-}).begin((expectedBytes) => {
-	console.log(`Going to download ${expectedBytes} bytes!`);
-}).progress((percent) => {
-	console.log(`Downloaded: ${percent * 100}%`);
-}).done(() => {
+}).begin((task) => {
+	console.log(`Going to download ${task.total} bytes!`);
+}).progress((task) => {
+	console.log(`Downloaded: ${task.percent * 100}%`);
+}).done((task) => {
 	console.log('Download is done!');
 }).error((error) => {
 	console.log('Download canceled due to error: ', error);
