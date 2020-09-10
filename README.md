@@ -1,6 +1,16 @@
-![react-native-background-downloader banner](https://d1w2zhnqcy4l8f.cloudfront.net/content/falcon/production/projects/V5EEOX_fast/RNBD-190702083358.png)
+Fork of [react-native-background-downloader](https://github.com/EkoLabs/react-native-background-downloader)
 
-[![npm version](https://badge.fury.io/js/react-native-background-downloader.svg)](https://badge.fury.io/js/react-native-background-downloader)
+ANDROID ONLY, BREAKING CHANGES
+
+Changed 
+* Added Default Fetch2 Notification
+* Expose Fetch2 Values (etaInMilliSeconds, downloadedBytesPerSecond, location, tag)
+* Notify Handlers for Pause/Resume/Cancel
+* Included Typescript Definition
+* use task object instead of update parameters
+* prefix handlers with "on"
+* unthrottle progress callbacks
+* reduced # of concurrent downloads to 2
 
 # react-native-background-downloader
 
@@ -87,14 +97,21 @@ import RNBackgroundDownloader from 'react-native-background-downloader';
 
 let task = RNBackgroundDownloader.download({
 	id: 'file123',
-	url: 'https://link-to-very.large/file.zip'
+	url: 'https://link-to-very.large/file.zip',
+    tag: 'My persistent tag string',
 	destination: `${RNBackgroundDownloader.directories.documents}/file.zip`
-}).begin((expectedBytes) => {
-	console.log(`Going to download ${expectedBytes} bytes!`);
-}).progress((percent) => {
-	console.log(`Downloaded: ${percent * 100}%`);
-}).done(() => {
-	console.log('Download is done!');
+}).onBegin((task) => {
+	console.log(`Going to download ${task.total} bytes!`);
+}).onProgress((task) => {
+	console.log(`Downloaded: ${task.percent * 100}% ETA: ${task.etaInMilliSeconds}ms`);
+}).onDone((task) => {
+	console.log('Download to ${task.location} is done!');
+}).onPause((task) => {
+	console.log('Download is paused!');
+}).onResume((task) => {
+	console.log('Download is resumed!');
+}).onCancelled((task) => {
+	console.log('Download is cancelled!');
 }).error((error) => {
 	console.log('Download canceled due to error: ', error);
 });
@@ -184,7 +201,8 @@ An object containing options properties
 | `id`          | String                                           | ✅        | All       | A Unique ID to provide for this download. This ID will help to identify the download task when the app re-launches                                                               |
 | `url`         | String                                           | ✅        | All       | URL to file you want to download                                                                                                                                                 |
 | `destination` | String                                           | ✅        | All       | Where to copy the file to once the download is done                                                                                                                              |
-| `headers`      | Object                                           |           | All       | Costume headers to add to the download request. These are merged with the headers given in the `setHeaders` function
+| `tag`         | String                                           |          | Android   | A string which is stored with the download task
+| `headers`     | Object                                           |          | All       | Costume headers to add to the download request. These are merged with the headers given in the `setHeaders` function
 | `priority`    | [Priority (enum)](#priority-enum---android-only) |          | Android   | The priority of the download. On Android, downloading is limited to 4 simultaneous instances where further downloads are queued. Priority helps in deciding which download to pick next from the queue. **Default:** Priority.MEDIUM |
 | `network`     | [Network (enum)](#network-enum---android-only)   |          | Android   | Give your the ability to limit the download to WIFI only. **Default:** Network.ALL                                                                                               |
 
@@ -213,10 +231,15 @@ A class representing a download task created by `RNBackgroundDownloader.download
 ### `Members`
 | Name           | Type   | Info                                                                                                 |
 | -------------- | ------ | ---------------------------------------------------------------------------------------------------- |
-| `id`           | String | The id you gave the task when calling `RNBackgroundDownloader.download`                                |
+| `id`           | String | The id you gave the task when calling `RNBackgroundDownloader.download`                              |
+| `tag`          | String | The string you gave the task when calling `RNBackgroundDownloader.download`                          |
+| `location`     | String | The location you gave the task when calling `RNBackgroundDownloader.download`                        |
 | `percent`      | Number | The current percent of completion of the task between 0 and 1                                        |
 | `bytesWritten` | Number | The number of bytes currently written by the task                                                    |
 | `totalBytes`   | Number | The number bytes expected to be written by this task or more plainly, the file size being downloaded |
+| `etaInMilliSeconds`   | Number | The number of ms expected to finished the download                                            |
+| `downloadedBytesPerSecond`   | Number | The average download speed                                                             |
+| `state`     | String | The current state of the download 'PENDING', 'DOWNLOADING', 'PAUSED', 'STOPPED', 'DONE', 'FAILED'       |
 
 ### `Callback Methods`
 Use these methods to stay updated on what's happening with the task.
@@ -225,10 +248,13 @@ All callback methods return the current instance of the `DownloadTask` for chain
 
 | Function   | Callback Arguments                | Info                                                                                                                          |
 | ---------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `begin`    | expectedBytes                     | Called when the first byte is received. 💡: this is good place to check if the device has enough storage space for this download |
-| `progress` | percent, bytesWritten, totalBytes | Called at max every 1.5s so you can update your progress bar accordingly                                                      |
-| `done`     |                                   | Called when the download is done, the file is at the destination you've set                                                   |
-| `error`    | error                             | Called when the download stops due to an error                                                                                |
+| `onBegin`    | DownloadTask                    | Called when the first byte is received. 💡: this is good place to check if the device has enough storage space for this download |
+| `onProgress` | DownloadTask                    | Called unthrottled with progress updates                                                      |
+| `onDone`     | DownloadTask                    | Called when the download is done, the file is at the destination you've set                                                   |
+| `onPause`    | DownloadTask                    | Called when the download is paused   |
+| `onResume`   | DownloadTask                    | Called when the download is resumed                                                   |
+| `onCancelled` | DownloadTask                    | Called when the download is cancelled                                                   |
+| `onError`    | error                             | Called when the download stops due to an error                                                                                |
 
 ### `pause()`
 Pauses the download
@@ -261,7 +287,7 @@ An absolute path to the app's documents directory. It is recommended that you us
 
 `Network.ALL` - Default ✅
 
-## Author
+## Original Author
 Developed by [Elad Gil](https://github.com/ptelad) of [Eko](http://www.helloeko.com)
 
 ## License

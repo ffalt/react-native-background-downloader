@@ -1,24 +1,62 @@
 import { NativeModules, NativeEventEmitter } from 'react-native';
-const { RNBackgroundDownloader } = NativeModules;
+const {RNBackgroundDownloader} = NativeModules;
 const RNBackgroundDownloaderEmitter = new NativeEventEmitter(RNBackgroundDownloader);
 import DownloadTask from './lib/downloadTask';
 
 const tasksMap = new Map();
 let headers = {};
 
-RNBackgroundDownloaderEmitter.addListener('downloadProgress', events => {
-    for (let event of events) {
-        let task = tasksMap.get(event.id);
-        if (task) {
-            task._onProgress(event.percent, event.written, event.total);
-        }
+RNBackgroundDownloaderEmitter.addListener('downloadBegin', event => {
+    let task = tasksMap.get(event.id);
+    if (task) {
+        task._onBegin(
+            event.percent,
+            event.written,
+            event.total,
+            event.etaInMilliSeconds,
+            event.downloadedBytesPerSecond
+        );
+    }
+});
+
+RNBackgroundDownloaderEmitter.addListener('downloadProgress', event => {
+    let task = tasksMap.get(event.id);
+    if (task) {
+        task._onProgress(
+            event.percent,
+            event.written,
+            event.total,
+            event.etaInMilliSeconds,
+            event.downloadedBytesPerSecond
+        );
+    }
+});
+
+RNBackgroundDownloaderEmitter.addListener('downloadCancelled', event => {
+    let task = tasksMap.get(event.id);
+    if (task) {
+        task._onCancelled();
+    }
+});
+
+RNBackgroundDownloaderEmitter.addListener('downloadPause', event => {
+    let task = tasksMap.get(event.id);
+    if (task) {
+        task._onPause();
+    }
+});
+
+RNBackgroundDownloaderEmitter.addListener('downloadResume', event => {
+    let task = tasksMap.get(event.id);
+    if (task) {
+        task._onResume();
     }
 });
 
 RNBackgroundDownloaderEmitter.addListener('downloadComplete', event => {
     let task = tasksMap.get(event.id);
     if (task) {
-        task._onDone(event.location);
+        task._onDone();
     }
     tasksMap.delete(event.id);
 });
@@ -31,13 +69,6 @@ RNBackgroundDownloaderEmitter.addListener('downloadFailed', event => {
     tasksMap.delete(event.id);
 });
 
-RNBackgroundDownloaderEmitter.addListener('downloadBegin', event => {
-    let task = tasksMap.get(event.id);
-    if (task) {
-        task._onBegin(event.expectedBytes);
-    }
-});
-
 export function setHeaders(h = {}) {
     if (typeof h !== 'object') {
         throw new Error('[RNBackgroundDownloader] headers must be an object');
@@ -47,28 +78,28 @@ export function setHeaders(h = {}) {
 
 export function checkForExistingDownloads() {
     return RNBackgroundDownloader.checkForExistingDownloads()
-        .then(foundTasks => {
-            return foundTasks.map(taskInfo => {
-                let task = new DownloadTask(taskInfo);
-                if (taskInfo.state === RNBackgroundDownloader.TaskRunning) {
-                    task.state = 'DOWNLOADING';
-                } else if (taskInfo.state === RNBackgroundDownloader.TaskSuspended) {
-                    task.state = 'PAUSED';
-                } else if (taskInfo.state === RNBackgroundDownloader.TaskCanceling) {
-                    task.stop();
+    .then(foundTasks => {
+        return foundTasks.map(taskInfo => {
+            let task = new DownloadTask(taskInfo);
+            if (taskInfo.state === RNBackgroundDownloader.TaskRunning) {
+                task.state = 'DOWNLOADING';
+            } else if (taskInfo.state === RNBackgroundDownloader.TaskSuspended) {
+                task.state = 'PAUSED';
+            } else if (taskInfo.state === RNBackgroundDownloader.TaskCanceling) {
+                task.stop();
+                return null;
+            } else if (taskInfo.state === RNBackgroundDownloader.TaskCompleted) {
+                if (taskInfo.bytesWritten === taskInfo.totalBytes) {
+                    task.state = 'DONE';
+                } else {
+                    // IOS completed the download but it was not done.
                     return null;
-                } else if (taskInfo.state === RNBackgroundDownloader.TaskCompleted) {
-                    if (taskInfo.bytesWritten === taskInfo.totalBytes) {
-                        task.state = 'DONE';
-                    } else {
-                        // IOS completed the download but it was not done.
-                        return null;
-                    }
                 }
-                tasksMap.set(taskInfo.id, task);
-                return task;
-            }).filter(task => task !== null);
-        });
+            }
+            tasksMap.set(taskInfo.id, task);
+            return task;
+        }).filter(task => task !== null);
+    });
 }
 
 export function download(options) {
@@ -85,6 +116,8 @@ export function download(options) {
     }
     RNBackgroundDownloader.download(options);
     let task = new DownloadTask(options.id);
+    task.location = options.destination;
+    task.tag = options.tag;
     tasksMap.set(options.id, task);
     return task;
 }
