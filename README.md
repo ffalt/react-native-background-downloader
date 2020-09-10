@@ -98,7 +98,7 @@ import RNBackgroundDownloader from 'react-native-background-downloader';
 let task = RNBackgroundDownloader.download({
 	id: 'file123',
 	url: 'https://link-to-very.large/file.zip',
-    tag: 'My persistent tag string',
+	tag: 'My persistent tag string',
 	destination: `${RNBackgroundDownloader.directories.documents}/file.zip`
 }).onBegin((task) => {
 	console.log(`Going to download ${task.total} bytes!`);
@@ -139,7 +139,7 @@ import RNBackgroundDownloader from 'react-native-background-downloader';
 
 let lostTasks = await RNBackgroundDownloader.checkForExistingDownloads();
 for (let task of lostTasks) {
-	console.log(`Task ${task.id} was found!`);
+	console.log(`Task ${task.id} with tag ${task.tag} was found!`);
 	task.onProgress((task) => {
 		console.log(`Downloaded: ${task.percent * 100}% ETA: ${task.etaInMilliSeconds}ms`);
 	}).done((task) => {
